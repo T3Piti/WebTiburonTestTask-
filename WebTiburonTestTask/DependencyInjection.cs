@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.AspNetCore.Builder;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using System;
@@ -17,9 +18,13 @@ namespace WebTiburonTestTask
         {
             services.AddControllers();
             services.AddHttpClient();
+            services.AddDistributedMemoryCache();
+            services.AddSession();
+
             var connectionString = configuretion["DbConnection"];
             services.AddDbContext<SurveyDBContext>(option => option.UseNpgsql(configuretion.GetConnectionString("DbConnection")));
             services.AddScoped<ISurveyService, SurveyService>();
+            services.AddResponseCompression(options => options.EnableForHttps = true);
             return services;
         }
     }

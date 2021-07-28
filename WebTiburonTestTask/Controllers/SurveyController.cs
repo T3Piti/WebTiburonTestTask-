@@ -36,6 +36,7 @@ namespace WebTiburonTestTask.Controllers
         {
             this._surveySevice = surveyService;
             this._dBContext = surveyDBContext;
+            this.HttpContext.Response.ContentType = "text/json";
         }
     }
 }

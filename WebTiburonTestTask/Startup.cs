@@ -29,9 +29,9 @@ namespace WebTiburonTestTask
             {
                 app.UseDeveloperExceptionPage();
             }
-
+            app.UseSession();
             app.UseHttpsRedirection();
-            
+            app.UseResponseCompression();
             app.UseRouting();
             app.UseEndpoints(endpoints =>
             {

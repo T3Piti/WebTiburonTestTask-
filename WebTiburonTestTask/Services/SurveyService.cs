@@ -44,7 +44,7 @@ namespace WebTiburonTestTask.Services
                     }
                     else
                     {
-                        var response = AnswerNorFoundException(requestedAnswer);
+                        var response = AnswerNotFoundException(requestedAnswer);
                         throw new HttpResponseException(response);
                     }
                 }
@@ -88,7 +88,7 @@ namespace WebTiburonTestTask.Services
                     }
                     else
                     {
-                        var response = AnswerNorFoundException(requestedAnswer);
+                        var response = AnswerNotFoundException(requestedAnswer);
                         throw new HttpResponseException(response);
                     }
                 }
@@ -197,7 +197,7 @@ namespace WebTiburonTestTask.Services
         }
         #endregion
 
-        private static HttpResponseMessage AnswerNorFoundException(AnswerRequestModel requestedAnswer)
+        private HttpResponseMessage AnswerNotFoundException(AnswerRequestModel requestedAnswer)
         {
             return new HttpResponseMessage(HttpStatusCode.NotFound)
             {
