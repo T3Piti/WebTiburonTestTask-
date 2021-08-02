@@ -15,27 +15,25 @@ namespace WebTiburonTestTask.Controllers
     public class SurveyController : ControllerBase
     {
         private ISurveyService _surveySevice;
-        private SurveyDBContext _dBContext;
 
         [Route("{id}")]
         [HttpGet]
         public async Task<IActionResult> GetQuestion(int id)
         {
-            return Ok(await Task.Run(() => _surveySevice.GetQuestion(id, _dBContext)));
+            return Ok(await _surveySevice.GetQuestion(id));
         }
 
         [Route("/NextQuestion")]
         [HttpPost]
         public async Task<IActionResult> NextQuestion(AnswerRequestModel answer)
         {
-            await Task.Run(() => _surveySevice.SaveQuestionAnswer(_dBContext, answer, this.HttpContext));
-            return Ok(await Task.Run(()=> _surveySevice.GetNextQuestionId(answer, _dBContext)));
+            await _surveySevice.SaveQuestionAnswer(answer, this.HttpContext);
+            return Ok(await _surveySevice.GetNextQuestionId(answer));
         }
 
-        public SurveyController(ISurveyService surveyService, SurveyDBContext surveyDBContext)
+        public SurveyController(ISurveyService surveyService)
         {
             this._surveySevice = surveyService;
-            this._dBContext = surveyDBContext;
             this.HttpContext.Response.ContentType = "text/json";
         }
     }

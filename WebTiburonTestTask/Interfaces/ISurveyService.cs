@@ -11,8 +11,8 @@ namespace WebTiburonTestTask.Interfaces
 {
     public interface ISurveyService
     {
-        public void SaveQuestionAnswer(SurveyDBContext dBContext, AnswerRequestModel requestAnswer, HttpContext context);
-        int GetNextQuestionId(AnswerRequestModel answer, SurveyDBContext dBContext);
-        QuestionResponseModel GetQuestion(int questionId, SurveyDBContext dBContext);
+        Task SaveQuestionAnswer(AnswerRequestModel requestAnswer, HttpContext context);
+        Task<int> GetNextQuestionId(AnswerRequestModel answer);
+        Task<QuestionResponseModel> GetQuestion(int questionId);
     }
 }

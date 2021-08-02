@@ -1,45 +1,47 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading.Tasks;
-using WebTiburonTestTask.Context;
-using WebTiburonTestTask.Models.DbModels;
-using System.Web;
-using Microsoft.AspNetCore.Http;
-using System.Net.Http;
 using System.Net;
+using System.Net.Http;
+using System.Threading.Tasks;
 using System.Web.Http;
-using WebTiburonTestTask.Models;
+using WebTiburonTestTask.Context;
 using WebTiburonTestTask.Interfaces;
+using WebTiburonTestTask.Models;
+using WebTiburonTestTask.Models.DbModels;
 
 namespace WebTiburonTestTask.Services
 {
     public class SurveyService : ISurveyService
     {
-        private string _interviewSessionKey ="InterviewKey";
+        private string _interviewSessionKey = "InterviewKey";
+        private SurveyDBContext _dbContext;
 
         #region Save Question
-        public void SaveQuestionAnswer(SurveyDBContext dBContext, AnswerRequestModel requestedAnswer, HttpContext context)
+        public async Task SaveQuestionAnswer(AnswerRequestModel requestedAnswer, HttpContext context)
         {
             string interviewId = GetInterviewId(context);
             Answer answer;
             try
             {
-                using (dBContext)
+                using (_dbContext)
                 {
-                    bool interviewIsExist = dBContext.Interviews.Find(interviewId) != null;
-                    answer = dBContext.Answers.Find(requestedAnswer.Id);
-                    if (answer != null)
+                    bool interviewIsExist, answerIsExist;
+                    interviewIsExist = answerIsExist = await _dbContext.Interviews.AnyAsync(i => i.Id == interviewId);
+                    answerIsExist = await _dbContext.Answers.AnyAsync(a => a.Id == requestedAnswer.Id);
+                    if (answerIsExist)
                     {
+                        answer = await _dbContext.Answers.FindAsync(requestedAnswer.Id);
                         if (interviewIsExist)
                         {
-                            AddInterviewAnswer(interviewId, dBContext, answer.Id);
+                            await AddInterviewAnswer(interviewId, answer.Id);
                         }
                         else
                         {
-                            AddNewInterview(interviewId, dBContext);
-                            AddInterviewAnswer(interviewId, dBContext, answer.Id);
+                            await AddNewInterview(interviewId);
+                            await AddInterviewAnswer(interviewId, answer.Id);
                         }
                     }
                     else
@@ -48,33 +50,32 @@ namespace WebTiburonTestTask.Services
                         throw new HttpResponseException(response);
                     }
                 }
+
             }
-            catch (Exception ex)
+            catch (HttpResponseException ex)
             {
-                var response = new HttpResponseMessage(HttpStatusCode.BadGateway)
-                {
-                    Content = new StringContent(string.Format(ex.Message)),
-                    ReasonPhrase = "Server Error"
-                };
-                throw new HttpResponseException(response);
+                throw new HttpResponseException(ex.Response);
             }
         }
-
-        public int GetNextQuestionId(AnswerRequestModel requestedAnswer, SurveyDBContext dBContext)
+        public async Task<int> GetNextQuestionId(AnswerRequestModel requestedAnswer)
         {
             try
             {
-                int nextQuestionId = 0;
-                using (dBContext)
+                using (_dbContext)
                 {
-                    var answer = dBContext.Answers.Find(requestedAnswer.Id);
-                    if (answer != null)
+                    var answerIsExist = await _dbContext.Answers.AnyAsync(a => a.Id == requestedAnswer.Id);
+                    if (answerIsExist)
                     {
-                        var question = dBContext.Questions.Where(q => q.SurveyId == answer.Question.SurveyId
-                        && q.QuestionNumber == answer.Question.QuestionNumber + 1).FirstOrDefault();
-                        if (question != null)
+                        int nextQuestionId = 0;
+                        var answer = await _dbContext.Answers.FindAsync(requestedAnswer.Id);
+                        bool nextQuestionIsExist = await _dbContext.Questions.AnyAsync(q => q.SurveyId == answer.Question.SurveyId
+                        && q.QuestionNumber == answer.Question.QuestionNumber + 1);
+                        if (nextQuestionIsExist)
                         {
-                            nextQuestionId = question.Id;
+                            var nextQuestion = await _dbContext.Questions.Where(q => q.SurveyId == answer.Question.SurveyId
+                            && q.QuestionNumber == answer.Question.QuestionNumber + 1).FirstOrDefaultAsync();
+                            nextQuestionId = nextQuestion.Id;
+                            return nextQuestionId;
                         }
                         else
                         {
@@ -92,32 +93,25 @@ namespace WebTiburonTestTask.Services
                         throw new HttpResponseException(response);
                     }
                 }
-                return nextQuestionId;
             }
-            catch (Exception ex)
+            catch (HttpResponseException ex)
             {
-                var response = new HttpResponseMessage(HttpStatusCode.BadGateway)
-                {
-                    Content = new StringContent(string.Format(ex.Message)),
-                    ReasonPhrase = "Server Error"
-                };
-                throw new HttpResponseException(response);
+                throw new HttpResponseException(ex.Response);
             }
         }
-
-        private void AddInterviewAnswer(string interviewId, SurveyDBContext dBContext, int answerId)
+        private async Task AddInterviewAnswer(string interviewId, int answerId)
         {
             try
             {
-                using (dBContext)
+                InterviewHasAnswer interviewAnswer = new InterviewHasAnswer
                 {
-                    InterviewHasAnswer interviewAnswer = new InterviewHasAnswer
-                    {
-                        InterviewId = interviewId,
-                        AnswerId = answerId
-                    };
-                    dBContext.InterviewHasAnswers.Add(interviewAnswer);
-                    dBContext.SaveChanges();
+                    InterviewId = interviewId,
+                    AnswerId = answerId
+                };
+                using (_dbContext)
+                {
+                    _dbContext.InterviewHasAnswers.Add(interviewAnswer);
+                    await _dbContext.SaveChangesAsync();
                 }
             }
             catch (Exception ex)
@@ -130,26 +124,25 @@ namespace WebTiburonTestTask.Services
                 throw new HttpResponseException(response);
             }
         }
-
-        private void AddNewInterview(string interviewId, SurveyDBContext dBContext)
+        private async Task AddNewInterview(string interviewId)
         {
             try
             {
-                using (dBContext)
+                Interview interview = new Interview
                 {
-                    Interview interview = new Interview
-                    {
-                        Id = interviewId
-                    };
+                    Id = interviewId
+                };
 
-                    dBContext.Interviews.Add(interview);
-                    dBContext.SaveChanges();
+                using (_dbContext)
+                {
+                    await _dbContext.Interviews.AddAsync(interview);
+                    await _dbContext.SaveChangesAsync();
                     Result result = new Result
                     {
                         InterviewId = interviewId
                     };
-                    dBContext.Results.Add(result);
-                    dBContext.SaveChanges();
+                    await _dbContext.Results.AddAsync(result);
+                    await _dbContext.SaveChangesAsync();
                 }
             }
             catch (Exception ex)
@@ -163,40 +156,38 @@ namespace WebTiburonTestTask.Services
             }
         }
         #endregion
-
         #region Get Question with Answers
-        public QuestionResponseModel GetQuestion(int questionId, SurveyDBContext dBContext)
+        //рефакторинг
+        public async Task<QuestionResponseModel> GetQuestion(int questionId)
         {
             ICollection<Answer> answers;
-            Question question;
-            using (dBContext)
+            using (_dbContext)
             {
-                question = dBContext.Questions.Find(questionId);
-
-                if (question != null)
+                bool questionIsExist = _dbContext.Questions.Any(q => q.Id == questionId);
+                Question question;
+                if (questionIsExist)
                 {
-                    answers = dBContext.Answers.Where(a => a.QuestionId == questionId).ToList();
+                    answers = await _dbContext.Answers.Where(a => a.QuestionId == questionId).ToListAsync();
+                    question = await _dbContext.Questions.FindAsync(questionId);
+                    QuestionResponseModel questionResponseModel = new QuestionResponseModel
+                    {
+                        Question = question,
+                        Answers = answers
+                    };
+                    return questionResponseModel;
                 }
                 else
                 {
                     var response = new HttpResponseMessage(HttpStatusCode.NotFound)
                     {
-                        Content = new StringContent(string.Format($"Question {questionId} nor found")),
+                        Content = new StringContent(string.Format($"Question {questionId} not found")),
                         ReasonPhrase = "Question not found"
                     };
                     throw new HttpResponseException(response);
                 }
             }
-            QuestionResponseModel questionResponseModel = new QuestionResponseModel
-            {
-                Question = question,
-                Answers = answers
-            };
-
-            return questionResponseModel;
         }
         #endregion
-
         private HttpResponseMessage AnswerNotFoundException(AnswerRequestModel requestedAnswer)
         {
             return new HttpResponseMessage(HttpStatusCode.NotFound)
@@ -205,7 +196,6 @@ namespace WebTiburonTestTask.Services
                 ReasonPhrase = "Answer not found"
             };
         }
-        
         private string GetInterviewId(HttpContext context)
         {
             if (!context.Session.Keys.Contains(_interviewSessionKey))
@@ -214,6 +204,10 @@ namespace WebTiburonTestTask.Services
                 context.Session.SetString(_interviewSessionKey, interviewId);
             }
             return context.Session.GetString(_interviewSessionKey);
+        }
+        public SurveyService(SurveyDBContext dbContext)
+        {
+            this._dbContext = dbContext;
         }
     }
 }
